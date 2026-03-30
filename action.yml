@@ -1,0 +1,148 @@
+---
+name: Issue Similarity
+description: Suggest potentially similar GitHub issues and upsert a triage comment.
+
+inputs:
+  github_token:
+    description: GitHub token with issues write access.
+    required: true
+  repository:
+    description: Repository in owner/name form.
+    required: true
+  issue_number:
+    description: The current issue number.
+    required: true
+  issue_title:
+    description: The current issue title.
+    required: true
+  issue_body:
+    description: The current issue body.
+    required: false
+    default: ""
+  issue_limit:
+    description: How many issues to fetch for similarity scoring.
+    required: false
+    default: "100"
+  result_limit:
+    description: Maximum number of scored matches to keep.
+    required: false
+    default: "10"
+  visible_per_state:
+    description: Maximum number of open or closed items to show in the comment.
+    required: false
+    default: "3"
+  marker:
+    description: Hidden marker used to find and update an existing bot comment.
+    required: false
+    default: "<!-- issue-similarity-check -->"
+  intro_text:
+    description: Intro text for the similarity comment.
+    required: false
+    default: "I found a few potentially similar issues that may be useful to review."
+  outro_text:
+    description: Closing text for the similarity comment.
+    required: false
+    default: "This is only a suggestion to help with triage."
+  stopwords_regex:
+    description: Case-insensitive regex for terms that should be ignored during scoring.
+    required: false
+    default: >-
+      ^(this|that|with|from|have|will|when|where|would|should|into|than|then|they|them|their|there|here|what|which|while|after|before|about|page|file|files|html|image|images|does|doesn|dont|cant|need|like|just|more|same|than|also)$
+
+runs:
+  using: composite
+  steps:
+    - name: Score similar issues and upsert comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github_token }}
+        INPUT_REPOSITORY: ${{ inputs.repository }}
+        INPUT_ISSUE_NUMBER: ${{ inputs.issue_number }}
+        INPUT_ISSUE_TITLE: ${{ inputs.issue_title }}
+        INPUT_ISSUE_BODY: ${{ inputs.issue_body }}
+        INPUT_ISSUE_LIMIT: ${{ inputs.issue_limit }}
+        INPUT_RESULT_LIMIT: ${{ inputs.result_limit }}
+        INPUT_VISIBLE_PER_STATE: ${{ inputs.visible_per_state }}
+        INPUT_MARKER: ${{ inputs.marker }}
+        INPUT_INTRO_TEXT: ${{ inputs.intro_text }}
+        INPUT_OUTRO_TEXT: ${{ inputs.outro_text }}
+        INPUT_STOPWORDS_REGEX: ${{ inputs.stopwords_regex }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: |
+        set -euo pipefail
+
+        issues_file="$(mktemp)"
+        results_file="$(mktemp)"
+        body_file="$(mktemp)"
+
+        gh issue list \
+          --repo "$INPUT_REPOSITORY" \
+          --state all \
+          --limit "$INPUT_ISSUE_LIMIT" \
+          --json number,title,body,state,url \
+          > "$issues_file"
+
+        ISSUE_NUMBER="$INPUT_ISSUE_NUMBER" \
+          ISSUE_TITLE="$INPUT_ISSUE_TITLE" \
+          ISSUE_BODY="$INPUT_ISSUE_BODY" \
+          STOPWORDS="$INPUT_STOPWORDS_REGEX" \
+          ISSUES_FILE="$issues_file" \
+          RESULTS_FILE="$results_file" \
+          RESULT_LIMIT="$INPUT_RESULT_LIMIT" \
+          python3 "$ACTION_PATH/scripts/score_issues.py"
+
+        if [ "$(jq 'length' "$results_file")" -eq 0 ]; then
+          echo "No similar issues found."
+          exit 0
+        fi
+
+        open_items=$(jq -r \
+          '.[] | select((.state | ascii_downcase) == "open") | "- #\(.number) - \(.title)"' \
+          "$results_file" \
+          | head -n "$INPUT_VISIBLE_PER_STATE")
+        closed_items=$(jq -r \
+          '.[] | select((.state | ascii_downcase) == "closed") | "- #\(.number) - \(.title)"' \
+          "$results_file" \
+          | head -n "$INPUT_VISIBLE_PER_STATE")
+
+        if [ -z "$open_items" ] && [ -z "$closed_items" ]; then
+          echo "No displayable similar issues found."
+          exit 0
+        fi
+
+        {
+          echo "$INPUT_MARKER"
+          echo "$INPUT_INTRO_TEXT"
+          echo
+          if [ -n "$open_items" ]; then
+            echo "Open issues:"
+            printf '%s\n' "$open_items"
+            echo
+          fi
+          if [ -n "$closed_items" ]; then
+            echo "Closed issues:"
+            printf '%s\n' "$closed_items"
+            echo
+          fi
+          echo "$INPUT_OUTRO_TEXT"
+        } > "$body_file"
+
+        existing_comment_id=$(gh api \
+          "repos/${INPUT_REPOSITORY}/issues/${INPUT_ISSUE_NUMBER}/comments" \
+          --jq '.[]
+            | select(.user.login == "github-actions[bot]")
+            | select(.body | contains("'"$INPUT_MARKER"'"))
+            | .id' \
+          | head -n 1)
+
+        if [ -n "$existing_comment_id" ]; then
+          comment_payload=$(jq -Rs '{body: .}' < "$body_file")
+          gh api "repos/${INPUT_REPOSITORY}/issues/comments/${existing_comment_id}" \
+            --method PATCH \
+            --input - \
+            <<<"$comment_payload" \
+            >/dev/null
+        else
+          gh issue comment "$INPUT_ISSUE_NUMBER" --repo "$INPUT_REPOSITORY" \
+            --body-file "$body_file" >/dev/null
+        fi

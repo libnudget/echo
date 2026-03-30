@@ -1,0 +1,23 @@
+---
+# SPDX-License-Identifier: MIT
+
+name: Validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install lint tools
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install yamllint
+      - name: Validate action metadata
+        run: yamllint action.yml
+      - name: Validate scorer script
+        run: python3 -m py_compile scripts/score_issues.py
