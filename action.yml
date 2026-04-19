@@ -97,11 +97,11 @@ runs:
         fi
 
         open_items=$(jq -r \
-          '.[] | select((.state | ascii_downcase) == "open") | "- #\(.number) - \(.title)"' \
+          '.[] | select((.state | ascii_downcase) == "open") | "- #\(.number)"' \
           "$results_file" \
           | head -n "$INPUT_VISIBLE_PER_STATE")
         closed_items=$(jq -r \
-          '.[] | select((.state | ascii_downcase) == "closed") | "- #\(.number) - \(.title)"' \
+          '.[] | select((.state | ascii_downcase) == "closed") | "- #\(.number)"' \
           "$results_file" \
           | head -n "$INPUT_VISIBLE_PER_STATE")
 
