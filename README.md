@@ -32,7 +32,7 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
-      - uses: libnudget/echo@v1
+      - uses: libnudget/echo@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
@@ -56,6 +56,7 @@ jobs:
 | `marker` | no | `<!-- issue-similarity-check -->` | Hidden marker for comment updates |
 | `intro_text` | no | standard text | Comment intro |
 | `outro_text` | no | standard text | Comment outro |
+| `footer_text` | no | `@libnudget` | Footer mention or link |
 | `stopwords_regex` | no | built-in regex | Words ignored during scoring |
 
 ## Notes
