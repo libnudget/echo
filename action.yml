@@ -43,6 +43,10 @@ inputs:
     description: Closing text for the similarity comment.
     required: false
     default: "This is only a suggestion to help with triage."
+  footer_text:
+    description: Footer text with mention or link.
+    required: false
+    default: "@libnudget"
   stopwords_regex:
     description: Case-insensitive regex for terms that should be ignored during scoring.
     required: false
@@ -66,6 +70,7 @@ runs:
         INPUT_MARKER: ${{ inputs.marker }}
         INPUT_INTRO_TEXT: ${{ inputs.intro_text }}
         INPUT_OUTRO_TEXT: ${{ inputs.outro_text }}
+        INPUT_FOOTER_TEXT: ${{ inputs.footer_text }}
         INPUT_STOPWORDS_REGEX: ${{ inputs.stopwords_regex }}
         ACTION_PATH: ${{ github.action_path }}
       run: |
@@ -125,6 +130,8 @@ runs:
             echo
           fi
           echo "$INPUT_OUTRO_TEXT"
+          echo
+          echo "$INPUT_FOOTER_TEXT"
         } > "$body_file"
 
         existing_comment_id=$(gh api \
