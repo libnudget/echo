@@ -1,5 +1,7 @@
 # echo
 
+[![Release](https://img.shields.io/github/v/release/libnudget/echo?logo=github&label=latest)](https://github.com/libnudget/echo/releases)
+
 Reusable GitHub Action for suggesting potentially similar issues and upserting a triage comment.
 
 It is designed for issue `opened`, `edited`, or `reopened` events, and it works by:
