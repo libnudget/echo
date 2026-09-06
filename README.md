@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Coccinella-Labs/echo/main/.github/assets/thumbnail.png" alt="echo" width="100%">
+</p>
+
 # echo
 
 [![Release](https://img.shields.io/github/v/release/libnudget/echo?logo=github&label=latest)](https://github.com/libnudget/echo/releases)
